@@ -11,9 +11,9 @@
 ###########################################################
 
 rm(list=ls())
-graphics.off()
-if (.Platform$OS.type == 'windows') windows(record=TRUE)
-setwd("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR")
+#graphics.off()
+#if (.Platform$OS.type == 'windows') windows(record=TRUE)
+#setwd("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR")
 library(HMDHFDplus)
 library(dplyr)
 library(tidyr)
