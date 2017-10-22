@@ -1,0 +1,303 @@
+---
+output: 
+  pdf_document:
+    number_sections: true
+    citation_package: natbib
+    keep_tex: true
+    fig_caption: true
+    latex_engine: pdflatex
+    template: C:/Users/Matt/Documents/Matt - Work Stuff/r code/delete/svm-latex-ms.tex
+title: "A scale- and time-independent technique for estimating total fertility rates from age-sex distributions"
+thanks: "The data and code that supports this analysis are available in the supplementary materials."
+author:
+- name: Mathew E. Hauer ^1^*
+  affiliation: University of Georgia
+- name: Carl P. Schmertmann ^2,3^
+  affiliation: Florida State University
+
+abstract: "Recent methodological advances in indirect migration and mortality estimation for small populations [@abel2014;@simini2012;@dwyer2017] have revealed important patterns, but accurate estimation of fertility for small or specialized populations remains elusive. The primary fertility index for a population , the total fertility rate (TFR), requires accurate data on births disaggregated by mother’s age. TFR is thus incalculable for the many areas and time periods that lack such information. Here we discuss a universal methodological framework for estimating TFR that uses inputs as minimal as the age-sex structure of a population. The implied total fertility rate (iTFR) accurately estimates fertility from a population's age-sex structure in a wide range of scales, time periods, and even species. We also discuss two extensions of the iTFR, called xTFR and BayesTFR, that offer improved accuracy with minimal additional data requirements. To demonstrate the utility of this approach, we produce the first complete county-level map of US fertility, reconstruct historical TFRs for three European countries up to 150 years prior to the collection of any birth records, and estimate TFR for the United States conditioned on household income, a variable that is not recorded in US birth records. Given its parameter-free nature, the method captures fundamental qualities that govern fertility with a near universal applicability across space and time. We anticipate that our methodological framework will be a starting point for more sophisticated fertility analyses in previously inestimable sub-populations, time periods, and geographies, significantly expanding our ability to understand the nature of fertility."
+#keywords: "Louisiana, Hurricane Katrina, Sea Level Rise, Adaptation, Migration, Coastal Populations, Landward Migration"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+geometry: margin=1in
+#fontfamily: mathpazo
+fontsize: 12pt
+spacing: double
+bibliography: C:/Users/Matt/Documents/Untitled/mybibfile.bib
+biblio-style: nature
+# use apsr or nature
+header-includes:
+- \usepackage[all]{nowidow}
+- \usepackage{rotating}
+#- \usepackage{lineno}
+#- \linenumbers
+
+
+---
+* Corresponding author. hauer@uga.edu. p: 706-542-9369.
+
+^1^ Carl Vinson Institute of Government, University of Georgia. 201 N. Milledge Ave. Athens, GA USA 30602.
+
+^2^ Department of Economics, Florida State University.
+^3^ Center for Demography and Population Health, Florida State University.
+
+\newpage
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls())
+library(tidyverse)
+library(ggrepel)
+
+PRIM_DATA <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/Bronikowski.LifeTables.SciData2016.csv")
+
+d <- PRIM_DATA %>%
+  mutate(child = N.x.female + N.x.male,
+         nFx = Offspring / Breeding_females,
+         nFx = ifelse(is.na(nFx),0, nFx))
+
+children <- d %>%
+  filter(Age == 0) %>%
+  select(Species, child)
+
+women <- d %>%
+  group_by(Species) %>%
+  summarize(Women = sum(N.x.female[fertint > 0]),
+            fertwidth = sum(fertint))
+
+TFR_table <- d %>%
+  group_by(Species) %>%
+  summarize(TFR_table = sum(nFx))
+
+cw <- inner_join(children, women)
+
+combined <- inner_join(cw, TFR_table) %>%
+  mutate(iTFR = (child/Women) * fertwidth)
+```
+
+# Main Text
+Fertility is the primary engine of global population change [@gerland2014] and is linked to the United Nation's Sustainable Development Goals for female education, child and maternal mortality, gender equality, and reproductive health [@abel16]. The total fertility rate (TFR; the expected number of children born over a complete reproductive lifetime) is widely regarded as one of the most important components of population change and has been extensively used throughout the 20th Century in a range of applications [@yule1906changes;@lutz2011;@shenk13;@lesthaeghe14;@myrskyla;@lee;@kaiser;@conley;@jones;@currie].
+
+Although the conventional technique for calculating TFR is straightforward, it requires data on births disaggregated by mother's age. This makes TFR incalculable in several situations: (i) for countries and regions that lack detailed birth records, (ii) for historical populations without vital event registration, such as the United States prior to 1933, (iii) for small-area populations when reporting agencies mask birth records for privacy reasons, and (iv) for any subpopulation not identified on official birth records, such as the women in a specific income decile, religion, tribe, or caste. The need for disaggregation of births by mother's age thus limits fertility analysis mainly to large populations in contemporary countries with good vital registration systems. 
+
+Numerous indirect estimation techniques have been proposed to circumvent these limitations [@bogue64;@hanson63;@rele67]. 
+These methods are often regression-based, and they rely on covariates -- such as mean age at marriage, percent of women ever married, etc. -- that may be absent from census data and therefore need to collected in surveys. The resulting scale- and time-dependent estimates are often inaccurate, [@tuchfeld74;@hauer13] and, like TFR, limited to areas, time periods, and populations with the requisite population and survey data.
+
+Here we discuss a modeling framework that overcomes these problems and demonstrate the near universal applicability of a parameter-free estimation method. 
+
+We first approximate TFR using a variant of the general fertility rate (the total observed births divided by the total number of reproductive age women), in which we substitute the number of enumerated children for recorded births. Then, based only on accurate population counts by age and sex, we develop more complex versions that can accurately estimate total fertility rates over numerous scales, time periods, sub-populations, and even species.
+
+Demographic calculations in the Supplementary Material show that the expected number of surviving children of both sexes, per woman in reproductive age groups at the end of an $n$-year period is the product of three factors: $\frac{C}{W}=s_0\cdot\bar{p}\cdot TFR$. These three factors are:
+\begin{enumerate}
+\item 	
+		Child mortality, $s_0$. This is the expected fraction of children still alive among those born in the past $n$ years, derived from person-years in a life table population with radix $l_0=1$ as $_{n}L_0/n$. 
+
+\item
+	A population-weighted index of the age-specific fertility schedule, $\bar{p}$. This represents the average share of lifetime fertility that women in the population experienced over the past five years, after a small adjustment for the possible mortality of adult women. It depends on the relative age pattern of fertility from menarche to menopause, $\phi_{15}...\phi_{45}$ for human populations, on the current age-specific populations of women ($W_{15}...W_{45}$), and on the potential mortality of women of childbearing ages ($L_{15}...L_{45}$ ).
+    
+\item
+  The total fertility rate, TFR. 
+\end{enumerate}
+
+
+One can thus calculate TFR as 
+\[
+TFR = \frac{1}{s_0}\cdot\frac{1}{\bar{p}}\cdot\frac{C}{W}
+\]
+the product of the child/woman ratio and two additional factors –- a child mortality multiplier $1/ s_0$  and an age structure multiplier $1/ \bar{p}$ (equation: \ref{eq:Ka}). 
+
+If women of reproductive age are uniformly distributed over seven five-year age groups, $a= 15...45$, then $\bar{p}\approx1/7$ and the age structure multiplier is approximately 7. We show that the simplest approximation, child-mortality near zero ($s_0 \approx 1$) and a uniform age-distribution of women across the reproductive age groups ($\bar{p} \approx 1/7$), still produces accurate estimates of total fertility within 0.25 children, making the approach parameter free without loss of significant accuracy (supplementary materials and Figure 1). This leaves the child/woman ratio as the dominant input to determining fertility levels. We refer to this simplest approximation as the implied or intrinsic total fertility rate (iTFR), representing the fertility rate implied the age-sex structure of a given population [@hauer13;@schmertmann2017bayesian]. We calculate implied fertility as
+
+\begin{equation}{iTFR}
+    =\frac{\beta - \alpha}{n}\cdot \frac{ _{n}C_0}{W} \label{eq:implied TFR} 
+\end{equation}
+where $\alpha$ and $\beta$ are the minimum age at menarche and maximum age at menopause, respectively, $_{n}C_0$ is the number of children under age $n$, and $W$ is the number of women between ages $\alpha$ and $\beta$.
+
+Equation \ref{eq:implied TFR} resolves the limitations of the conventional technique for calculating TFR, freeing the estimation of TFR from the burden of detailed birth records. Instead, the approach produces estimates with as few inputs as basic age-sex counts -- common data collected in censuses. It also has no other tunable parameters allowing for a near universal deployment of the method. Of course the method does require accurate population data, making it more in--common with the demographic accounting equation than more traditional estimation methods. Thus, (eq. \ref{eq:implied TFR}) represents the parameter-free, fundamental equation of implied fertility. Finally, the implied fertility rate can be applied within stochastic frameworks, estimating both TFR and its variance as well as the sensitivity of TFR calculation under various mortality regimes. 
+
+To test the flexibility of our measure and its ability to estimate TFR in a variety of data situations, we present three derivations of the implied fertility rate (see supplementary material) with increasing complexity and subsequent data requirements -– a deterministic formulation based on the algebraic rearrangement, iTFR (equation: \ref{eq:implied TFR})(\textbf{Fig. 1, left column}), a regression-based formulation conditional on the age-structure (essentially incorporating $1/\bar{p}$ into the estimation), xTFR (equation: \ref{eq:kTFR})(\textbf{Fig. 1, middle column}), and a complete Bayesian approach based on child- and maternal-mortality, the female reproductive age-structure, and potential underenumeration of children and reproductive-age women (incorporating both $1/\bar{p}$ and $1/s_0$), BayesTFR (equation: \ref{eq:marginal posterior of TFR})(\textbf{Fig. 1, right column}). These deviations allow us to quantify the source of error in equation \ref{eq:implied TFR}. 
+
+We verify the accuracy of the three derivations using data from the Human Fertility Database and Human Mortality Database [@HFD;@HMD] for nearly 1,800 fertility schedules between 1891 and 2015 across 30 countries (see Table \ref{HFDCountries} in the Supplementary Materials for a complete list). This dataset comprises only complete, official vital event statistics and is the most complete and accurate collection of observed fertility data compiled to date (\textbf{Fig. 1}). We find good agreement between our implied fertility rates and the observed TFRs for all three methods (\textbf{Fig. 1, a, b, c}). Typically demographic parameters increase in accuracy as population sizes increase due to the law of large numbers, and they tend to be more accurate in more recent time periods due to improved data collection practices. However, we find that error rates are independent of population size and scale (\textbf{Fig. 1, d, e, f}) and do not vary across time (\textbf{Fig. 1, g, h, i}), suggesting scale- and temporal- independence uncommon in other indirect methods. Additionally, all three methods on average estimated total fertility within 0.1 observed births, with 90\% of estimates from the poorest performing method within 0.25 births (\textbf{Fig. 1, j, k}). Finally, 90\% of estimates were within 11\% of the observed value, regardless of derivation, with the average estimates within 5\% of the observed TFRs. Taken together, these results suggest a robust method with applicability across space and time, with better performance with additional model parameters. Even the simplest derivation with the least data requirements, implied fertility rate itself, produces accurate estimates of the TFR.
+
+\textbf{Table 1} reports the summary statistics for all three derivations. All three methods produce TFRs within approximately one-tenth of a child, with the best performing method producing estimates within one-twentieth of a child. Ninety percent of estimates are within one-quarter of a birth and have an average error rate less than 5\%. This is significant improvement upon previous indirect estimation methods [@hauer13].
+
+```{r movement, echo= FALSE, message = FALSE, warning = FALSE, fig.cap= paste("**iTFR using Primate Fertility Data**. We test the iTFR using data from seven wild primate species [@bronikowski16;@bronikowskidata]. These species exhibit markedly different menarche and menopause, length of fertility schedule, and fertility tempo from each other and from humans. We plot the observed TFR against the estimated TFR using the iTFR formulation. The solid line is Y=X, and the dashed lines represent +/- 10% of Y=X. Overall the iTFR performs remarkably well across the seven primate species, losing very little accuracy for species with markedly different fertility characteristics.\\label{primates}")}
+
+###   Making the Primate graphic
+ggplot(combined, aes(x = TFR_table, y = iTFR)) +
+  geom_point(shape = 19, color = 'gray', size = 3) +
+  geom_text_repel(aes(label = Species), hjust = 0, vjust = 0) +
+  theme_bw() +
+  geom_abline(slope = 1) +
+  xlim(5, 11) +
+  ylim(5, 11) +
+  theme(text = element_text(face = 'bold')) +
+  geom_line(aes(x = TFR_table, y = 0.9 * TFR_table), lty = 2, lwd = 1, col = 'black') +
+  geom_line(aes(x = TFR_table, y = 1.1 * TFR_table), lty = 2, lwd = 1, col = 'black') +
+  labs(x = 'TFR(Data',
+       y = 'p(TFR)')
+```
+
+To test the generalizability of the method, we examine the accuracy of the implied fertility derivation in seven non-human primate populations (**\autoref{primates}**). These populations vary substantially in population size and fertility patterns, allowing us to assess whether the methods work across species. In contrast to humans with a fertility length of 35-40 years and menarche and menopuase typically demarcated at 15-49 years old, menarche among the seven primate species ranged from a low of three years old with Sifakas (*Propithecus verreauxi*) to a high of 11 years old with Chimpanzees (*Pan troglodytes*), and fertility length ranged from a low of 22 years for Capuchins (*Cebus capucinus*) to a high of 45 years for Chimpanzees. These species display fertility intervals, fertility schedules, and TFRs that differ greatly from humans. We find that implied fertility accurately estimates total fertility among these species (**\autoref{primates}**). Remarkably, this simple method with quite limited data requirements can accurately estimate total fertility across such diversity. Our results with nonhuman primates suggest the method captures fundamental patterns that govern fertility and that it can nearly universally be applied to a wide span of previously inestimable populations, time periods, geographies, and possibly species.
+
+The three panel plots in (\textbf{Fig. 3}) demonstrate the flexibility of the method, depending on data availability, and how it greatly expands our ability to estimate fertility across geographies, time periods, and subpopulations. The National Center for Health Statistics does not publish fertility information for US Counties with populations fewer than 100,000 for privacy reasons. As a result, fertility can be estimated in only 500 of the approximately 3000 US Counties, significantly hindering the examination of sub-national fertility patterns. We use data collected from the 2010 US Census to produce robust estimates for all US counties using the xTFR method. We are then able to create the first complete county-level map of US fertility (\textbf{Fig. 3, a}). We also extended our analysis of the Human Mortality Database for three additional example countries: France, the Netherlands, and Sweden (\textbf{Fig. 3, b}). The Netherlands began collecting detailed birth records in 1950, France in 1946, and Sweden in 1891. However, these countries collected both mortality and age-sex data considerably earlier (Netherlands in 1850, France in 1816, and Sweden in 1751). By using the BayesTFR method, we can reconstruct historical TFRs to create a time series of fertility data well before birth record collection began, significantly improving our ability to explore historical fertility patterns from up to 250 years ago. In (\textbf{Fig. 3, c}) we use the basic iTFR method to estimate TFRs by household income in the United States using data from the US Census Bureau's American Community Survey (ACS). The United States does not record fertility or mortality data by household income, precluding the use of the BayesTFR method. In addition, the ACS data have more statistical accuracy when estimates are pooled, precluding the use of the xTFR method, due to pooling women by age. However, by linking age-sex data to household income, we estimate TFR by income, a subpopulation previously unmeasured.
+
+Researchers can tailor the method they use to the data available or the research question due to the flexible data requirements, a rare feature in methodologies, and can do so with confidence in the accuracy of the resultant estimates. As we show in \textbf{Fig 3.}, the applications of such a robust, simple method cannot be understated. The implied fertility rate opens the door for sophisticated fertility analyses in many previously inestimable populations of interest to sociologists [@lesthaeghe14], economists [@hotz1997economics], anthropologists [@greenhalgh1995situating], epidemiologists [@paulson2002pregnancy], and population geographers [@sorichetta2015high]. The parameter-free, scale-, time-, and species- robust technique can estimate fertility rates even in areas where such data are not collected systematically as it relies only on age-sex data -- ubiquitous basic data collected in censuses across scale and time.
+
+We anticipate this method will open up new lines of inquiry into human fertility patterns. The global demographic transition is typically examined post-1950[@bongaars09]; however, using age-sex structure data, researchers can examine the global demographic transition in greater detail further back in time. Relatedly, re-creations of historic human fertility rates rely on estimates of energy balance and the relative metabolic load or a universal density-dependent demographic model [@bocquet11]. Using the methods proposed here, anthropologists could re-create historic human fertility rates directly from skeletal remains or cemetery information while accounting for underenumeration and child-mortality. Finally, there has been an increased demand for high-resolution gridded population datasets related to climate change research [@jones15;@cincotta00]. Our methods could be used to estimate fertility levels and change as either inputs for gridded population projections or for the production of gridded fertility level datasets due to the demonstrated scale independence. 
+
+
+## Competing Interests
+The authors declare that they have no competing financial interests.
+
+\newpage
+
+# Supplementary Information
+## **Data:**
+
+**Human Fertility Database**. Data on fertility patterns come from the Human Fertility Database[@HFD]. These data represent the most complete and accurate historical pattern of human fertility currently available. The fertility rates are entirely based on official vital statistics and are not modelled. The HFD covers fertility schedules for 34 countries between 1891 and 2015. In total, the HFD contains 1,870 country-years of total fertility rates.
+
+\begin{table}
+  \centering
+  \caption{Human Fertility Database Countries and years of data availability.}
+    \begin{tabular}{llll}
+    Country & Data Availability & Country & Data Availability\\
+Austria	& 1951-2014	& Netherlands	& 1950-2012\\
+Belarus	 & 1964-2014	& Norway	& 1967-2014\\
+Bulgaria	& 1947-2009	& Portugal	& 1940-2015\\
+Canada	& 1921-2011	& Russian Federation	& 1959-2014\\
+Chile	& 1992-2005	& Slovakia	& 1950-2009\\
+Czech Republic	& 1950-2014	& Slovenia	& 1983-2014\\
+Estonia	& 1959-2013	& Spain	& 1922-2014\\
+Finland	& 1939-2015	& Sweden	& 1891-2014\\
+France	& 1946-2013	& Switzerland	& 1932-2014\\
+Germany	& 1990-2013	& Taiwan	& 1976-2014\\
+Hungary& 	1950-2014	& Ukraine	& 1959-2013\\
+Iceland	& 1960-2010	& England \& Wales	& 1938-2013\\
+Italy	& 1954-2012	& Scotland	& 1945-2013\\
+Japan	& 1947-2014	& Northern Ireland	& 1974-2013\\
+Lithuania	& 1959-2013	& United States of America	& 1933-2014\\
+
+    \end{tabular}%
+  \label{HFDCountries}%
+\end{table}
+
+**Human Mortality Database**. Data on mortality rates come from the Human Mortality Database [@HMD]. These data represent the most complete and accurate historical pattern of human mortality currently available. Mortality rates come from official death counts from vital statistics, census counts, birth counts, and population estimates from varying sources. $Q_x$ values and population counts used in this analysis were gathered from this data source.
+
+**Primate data**. Primate age-specific fertility data come from Bronikowski et al [@bronikowski16;@bronikowskidata]. These data contain female age-specific fertility estimates for seven wild primates: sifaka (*Propithecus verreauxi*) in Madagascar, muriqui (*Brachyteles hypoxanthus*) in Brazil; capuchin (*Cebus capucinus*) in Costa Rica; baboon (*Papio cynocephalus*) and blue monkey (*Cercopithecus mitis*) in Kenya; chimpanzee (\textit{Pan troglodytes}) in Tanzania; and gorilla (*Gorilla beringei*) in Rwanda. The primate species were continuously monitored for at least 29 years. The fertility data are estimated in single-year intervals.
+
+**US County Fertility**.
+
+**The implied Total Fertility Rate**
+
+We propose two derivations or extensions of the implied total fertility rate from the main text and describe the formulation in greater detail.
+
+TFR is the expected number of children born over a complete reproductive lifetime at current age-specific rates. It is notated as
+
+\begin{equation}{TFR}
+   =\int_{\alpha}^{\beta}\,f(x)\,dx \label{eq:exact TFR integral} 
+\end{equation}
+
+where $f(x)$ is the fertility rate (births per woman-year) at exact age $x$ and $[\alpha,\beta]$ is the range of ages with non-zero fertility. In practice scholars approximate $f(x)$ with a step function that has a constant rate $F_x$ within each $n$-year age interval $[x,x+n)$. $F_x$ values are estimated as ratios of annual births to women in each age group ($B_x$) to their mid-year populations ($W_x$).
+
+TFR is then calculated as 
+
+\begin{equation}{TFR}
+    = \: n\cdot\displaystyle\sum_{x=\alpha}^{\beta-n}\frac{B_x}{W_x} \label{eq:exact TFR} 
+\end{equation}
+
+Fertility calculations imply that the expected number of surviving children of both sexes per woman in reproductive age groups at the end of a five-year period, which we call $K_a$ is
+
+\begin{eqnarray}
+K_{a}\, & = & \,\,\left[\frac{L_{a-5}}{L_{a}}\,\cdot F_{a-5}\;+\; F_{a}\right]\,\,\frac{L_{0}}{2}\label{eq:Ka}\\
+ & = & \,\, TFR\,\cdot\frac{L_{0}}{5}\cdot\,\frac{1}{2}\,\left(\frac{L_{a-5}}{L_{a}}\,\cdot\phi_{a-5}\;+\;\phi_{a}\right)\nonumber \\
+ & = & \,\, TFR\,\cdot s_{0}\cdot\, p_{a}\nonumber 
+\end{eqnarray}
+
+where $F_a$ is the average fertility rate over exact ages $[a,a+5)$; $\phi_a$ is the fraction of total fertility occurring in age group a $(_5F_a/TFR)$; $L_a$ is the expected person-years lived in age group $a$, in a life table with a radix $l_0=1$; $s_0$ is the expected fraction still alive among children born in the past five years $(l_0/5)$; $W_a$ is the observed women in age group $a$; and $W$ is the total number of women at childbearing ages $[15, 50)$.
+
+We can decompose the right-hand side of $K_a$ into three multiplicative factors: the total fertility rate, child survival, $s_0$, and age-structure fertility, $p_a$.
+
+If we examine the expected total number of surviving 0-4 year olds in a given population that contains women of childbearing ages 15-49:
+
+\begin{equation}
+C\,=\,\sum_{a=15}^{45}\, W_{a}\, K_{a}\,=\, TFR\,\cdot s_{0}\cdot\left(\sum_{a=15}^{45}\, W_{a}\, p_{a}\right)\label{eq:expected total C}
+\end{equation}
+
+then the number of surviving children becomes a product of the fertility rates, child survival, and tempo fertility ($W_ap_a$) or the timing of childbearing.
+
+We then further refine equation (\ref{eq:expected total C}) to produce the child/woman ratio:
+
+\begin{eqnarray}
+\frac{C}{W} & = & TFR\,\cdot\, s_{0}\,\cdot\,\left(\sum_{a=15}^{45}\,\frac{W_{a}}{W}\, p_{a}\right)=\, TFR\,\cdot s_{0}\,\cdot\bar{p}\label{eq:CWRatio}
+\end{eqnarray}
+
+where $\bar{p}$ is the population-weighted average of lifetime fertility.
+
+We can now rearrange equation (\ref{eq:CWRatio}) to solve for TFR such that
+
+\begin{equation}
+TFR\,=\,\frac{1}{s_{0}}\cdot\frac{1}{\bar{p}}\cdot\frac{C}{W}\label{eq:s0TFR}
+\end{equation}
+
+If women of childbearing ages in a given population are uniformly distributed across the fertility interval, then $\bar{p} =n$, where $n$ is the width of the fertility interval. If we assume near-zero child-mortality ($S_0=1$) and that women of childbearing ages are uniformly distributed across the fertility interval ( $\bar{p}=n$). We can then further simplify equation (\ref{eq:s0TFR}) into the implied total fertility rate, or the fertility rate that is implied by the age-sex structure of a given population
+
+\begin{equation}
+iTFR=n\cdot\frac{C}{W}
+\end{equation}
+
+This derivation is remarkably similar to the general fertility rate ($B_t/_{40}W_{10}$) and age-specific fertility ($_nF_x = _nB_x/_nW_x$) with children substituted for births in both equations. This allows the iTFR to convert the C/W into $_nF_x$ and by extension, produce the indirect equivalent of the total fertility rate that is implied or intrinsic to the observed population age-sex structure freeing the estimation of TFR from its heavy data requirements.
+
+**xTFR**
+
+If women of reproductive age are uniformly distributed over the fertility interval, then the multiplier, $n$, will perfectly capture the width of the fertility interval. However, in practice, women are unlikely to be exactly uniformly distributed over the interval. We solved for the ideal multiplier in 1,859 fertility schedules in the HFD using women aged 15-49 and children aged 0-4 (ideal multiplier=7) and find multipliers ranging from a low of 4.52 (Taiwan 1986) to a high of 11.29 (France 1946). They are within 10% of the ideal multiplier (6.3-7.7) in 68.7% of the country-years. Ninety percent of all multipliers fall between 6.02 and 7.79.
+
+However, fertility schedules typically follow a skewed distribution toward younger ages [@coale74;@Schmertmann03] and demonstrate a common shape across human populations with most fertility occurring between 20 and 34. We observed a strong relationship between the proportion of women aged 25-34 and the multiplier (Figure S1., r-squared=0.388). Other age groups had considerably lower r-squared values (15-24 = 0.163, 20-29 = 0.3492, 25-34 = 0.388, 30-39 = 0.179, 35-44 = 0.108, 40-49 = 0.096). We then modify the iTFR to account for this new information:
+
+\begin{eqnarray}
+xTFR=x \cdot \frac{C}{W}\\\label{eq:kTFR}
+x=\beta_0 + \beta_1X_i \nonumber
+\end{eqnarray}
+
+where $X_i$ is the proportion of women aged 25-34 observed in population $i$. This formulation improves the estimates of total fertility (Fig. 1) but requires additional information about the distribution of women in the fertility interval. 
+
+
+We test a derivation of the xTFR in a multiple regression based on the proportion of women in each five-year age group,
+
+\begin{eqnarray}
+xTFR=x \cdot \frac{C}{W}\\\label{eq:kTFR multiple regression}
+x=\beta_0 + \beta_1X_i + \beta_2X_j... \beta_7X_7 \nonumber
+\end{eqnarray}
+
+However, we find that using the population aged 25-34 produced almost identical estimates with minimal loss of accuracy (supplementary figure X).
+
+**Bayes TFR**
+
+We extend our previous approach into a Bayesian framework relating the number of children aged 0-4 to women aged 15-49. The iTFR formulation outlined in sup. mat. section 2 does not account for the potential error associated with any of the given parameters. The xTFR incorporates additional information from the age structure to improve the estimates but does not account for infant mortality or possible estimation errors in the number of women of childbearing ages. $s_0$ and $\bar{p}$ cannot not be truly known and could be subject to random errors in measurement. 
+
+We deconstruct the estimation of total fertility from equation (\ref{eq:s0TFR}) into $TFR$, $C$, $W$, $s_0$, and $\bar{p}$ producing a five-parameter model with four of the parameters deriving from the age-structure – $C$, $W$, $\bar{p}$, and $TFR$). The fifth parameter, $s_0$, is not information embedded within the age structure and most be supplied in addition to the age structure. These parameters can be broadly categorized as fertility ($TFR$, $\bar{p}$), mortality ($s_0$), and age structure ($W$) with the result of these quantities being the expected number of surviving children ($C$).
+
+**Fertility Parameters**
+
+We decompose the fertility schedule for 5-year age groups into two components: level and shape 
+
+\begin{equation}
+(F_{10}, F_{15},...,F_{45}= \frac{TFR}{5} \cdot (0,\phi_{15},...,\phi{45})
+\end{equation}
+ 
+where $TFR$ is the total fertility rate and $phi_a$ is the proportion of lifetime fertility that occurs in age group $a$. Fertility is negligible before age 15; thus, $F_10=0$. The proportions $\phi_{15}...\phi_{45}$ are rewritten into indices, such that $\gamma_{a}=\ln(\frac{\phi_a}{\phi_{15}})$ for $a=15...45$ such that $\phi_a(\gamma)= \frac{\exp(\gamma_{a})}{\sum_{z}\exp(\gamma_{z})}$ sum to one.
+
+The $\gamma$ indices are modelled as $\gamma=m+X\beta$ where $m$ and $X$ are constants derived from empirical data (see section X.X) and $\beta$ are shape parameters. These three fertility parameters ($TFR$, $\beta_1$, $\beta_2$) yield eight 5-year fertility rates ($F_{10}...F_{45}:\beta \rightarrow \gamma \rightarrow \phi$ and $\frac{TFR}{5} \cdot \phi = F$.
+
+<!--We use a completely uninformative, improper prior for $TFR$: $ f(TFR)\propto 1$. We assign higher probability to more typical fertility patterns by building the prior for $\beta$ coefficients from information in the HFD and the US Census Bureau's International Database [@CensusIDB] to create priors of the shape of the fertility schedule by age. We calculate $\gamma$ indices for $F_{a}$ empirical schedules (n=226 from the IDB, n=411 from the HFD), and then performed a singular value decomposition on the (de-meaned) 6x637 $\gamma$ array. This produces a model in which each of the 637 columns of $\gamma$ could be well approximated by the mean vector plus a weighted sum of two principal components: $\gamma_{i}\approx m+X\beta_{i}$. We scale the two columns of $X$ so that $\beta_{i}$ coefficients
+have zero means, unit variances, and zero covariances over the empirical data $i=1 \ldots 637$. These calculations produce constants $X= \begin{matrix}0 & 0.27 & 0.54 & 0.73 & 0.88 & 1.04 & 1.52\\0 & 0.32 & 0.51 & 0.51 & 0.35 & 0.05 & -0.72 \end{matrix}^{\prime}$, with which we use the prior !-->
+
+\begin{equation}
+\beta\,\sim N(0,I_2)\label{eq:prior for beta}
+\end{equation}
+
+with support restricted to the range [-2,+2] for each $\beta$ coefficient, in order to better mimic the HFD distributions. When we examine the $X$ matrix, we find that $\beta_{1}$ affects the mean age of childbearing and $\beta_{2}$ affects the variance: If $\beta_1$ is higher, fertility is postponed; if $\beta_2$ is higher, fertility is concentrated in fewer age groups.
+
+*Mortality Parameters*
+
