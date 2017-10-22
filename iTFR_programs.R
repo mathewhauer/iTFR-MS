@@ -22,11 +22,10 @@ library(grid)
 library(gridExtra)
 library(openxlsx) # Microsoft Excel Files
 
+primateeval = read.xlsx("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/Copy of Bronikowski.LifeTables.SciData2016.xlsx", sheet=2)
 
-
-primateeval = read.xlsx("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR/Copy of Bronikowski.LifeTables.SciData2016.xlsx", sheet=2)
-
-
+myusername <- userInput()
+mypassword <- userInput()
 
 # a function to calculate five-year averages of TFR
 # given vector X of length L, returns
