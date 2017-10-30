@@ -56,10 +56,16 @@ library(gridExtra)
 library(HMDHFDplus)
 library(scales)
 library(dplyr)
+library(openxlsx) 
+library(tmap)
+library(tmaptools)
+library(tigris)
+library(censusapi)
+library(tidycensus)
 ```
 
 ```{r basecode, include = FALSE, cache =TRUE}
-PRIM_DATA <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/Bronikowski.LifeTables.SciData2016.csv")
+PRIM_DATA <- read_csv("Bronikowski.LifeTables.SciData2016.csv")
 
 d <- PRIM_DATA %>%
   mutate(child = N.x.female + N.x.male,
@@ -98,11 +104,11 @@ my_grobj = grobTree(textGrob("j", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", si
 my_grobk = grobTree(textGrob("k", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
 my_grobl = grobTree(textGrob("l", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
 
-z <- read.csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/bayesitfr_hmdhfd3.csv") %>%
+z <- read.csv("bayesitfr_hmdhfd3.csv") %>%
   select(Code, Year, iTFR, lagTFR, bayesTFR=post_mean)
 
-bayesTFR <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/bayesitfr_hmdhfd3.csv")
-xitfr <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/xTFR_06082017.csv")
+bayesTFR <- read_csv("bayesitfr_hmdhfd3.csv")
+xitfr <- read_csv("xTFR_06082017.csv")
 
 
 join = inner_join(xitfr, z, c("Code", "Year"))
@@ -110,7 +116,253 @@ join = inner_join(xitfr, z, c("Code", "Year"))
 join = join %>%
   select(Code, Year, iTFR=iTFR.x, xTFR, C,lagTFR=lagTFR.x, bayesTFR)
 
+###   My Census API key   ###
+census_api_key("0206e3f2924a424be8722887fd0a49cea6308a7e")
 
+# a function to calculate five-year averages of TFR
+# given vector X of length L, returns
+#   NA NA NA NA,  mean( X[1:5]), mean(X[2:6]), ..., mean(X[(L-4):L])
+mean_lag5 = function(X) {
+  if (length(X) > 4) {
+    Z = sapply( 5:length(X),  function(i) mean(X[i - 0:4]))
+    Z = c( rep(NA,4), Z)
+  } else {
+    Z = rep(NA, length(X))
+  }  
+  return(Z)
+}
+
+# set up data from Human FERTILITY database files
+# 
+# remove GBR_NP and DEUTNP observations, because those
+# countries are subdivided and we don't want to double count
+
+discard = c('GBR_NP', 'DEUTE', 'DEUTW')
+
+HFD_expos = readHFD('exposRR.txt') %>%
+  filter(Age %in% 15:49, !(Code %in% discard)) %>%
+  mutate(AgeGroup = 5 * floor(Age/5)) %>%
+  group_by(Code,Year,AgeGroup) %>%
+  summarize(W = sum(Exposure)) %>%
+  spread(key=AgeGroup, value=W, sep='_') %>%
+  dplyr::select(Code,Year,W=starts_with('AgeGroup')) %>%
+  ungroup()
+
+HFD_tfr = readHFD('tfrRR.txt') %>%
+  filter(!(Code %in% discard)) %>%
+  dplyr::select(-TFR40)
+
+
+HFD_births = readHFD('totbirthsRR.txt') %>%
+  filter(!(Code %in% discard)) %>%
+  dplyr::select(Births=Total, Code=Code, Year=Year)
+
+HMD_population = data.frame()
+lt_both = data.frame()
+
+# set up data from Human MORTALITY database files
+for (this.country in unique(HFD_expos$Code)) {
+  filename = paste0(this.country,'.Population5.txt')
+  unzip(zipfile='HMD_population.zip', 
+        files=paste0('Population5/',filename),
+        junkpaths=TRUE)
+  
+  tmp = read.table(filename, skip=2, stringsAsFactors = FALSE,
+                   header=TRUE)
+  
+  # Some countries have YYYY+ and YYYY- versions of Year, for yrs in
+  # which territory changed (AK and HI in 1959 US, NF in 1949 Canada, etc)
+  # In all cases we discard the "-" versions, and remove the "+"
+  
+  minus_ix = grep('-', tmp$Year)
+  if (length(minus_ix) > 0)  tmp = tmp[-minus_ix, ]
+  
+  plus_ix = grep('+', tmp$Year)
+  if (length(plus_ix) > 0)  tmp$Year[plus_ix] = substr(tmp$Year,1,4)
+  
+  
+  
+  tmp = tmp %>%
+    mutate(Code = this.country,
+           Year = as.integer(Year))
+  
+  tmp$Age = c(0,1,seq(5,110,5))   # replace with numeric
+  
+  tmp = tmp %>%
+    group_by(Code, Year) %>%
+    summarize( C = sum(Total[Age %in% 0:1]),
+               W15 = Female[Age == 15],
+               W20 = Female[Age == 20],
+               W25 = Female[Age == 25],
+               W30 = Female[Age == 30],
+               W35 = Female[Age == 35],
+               W40 = Female[Age == 40],
+               W45 = Female[Age == 45],
+               W   = sum(Female[Age %in% seq(15,45,5)]),
+               p2534 = (W25+W30)/W,
+               iTFR = 7*C/W) %>%
+    ungroup()
+  
+  HMD_population = rbind(HMD_population, tmp)
+  
+  file.remove(filename)
+  
+} # for this.country
+
+# Merge
+for (this.country in unique(HFD_expos$Code)) {
+  filename = paste0(this.country,'.bltper_1x1.txt')
+  unzip(zipfile='lt_both.zip', 
+        files=paste0('bltper_1x1/',filename),
+        junkpaths=TRUE)
+  
+  tmp = read.table(filename, skip=2, stringsAsFactors = FALSE,
+                   header=TRUE)
+  
+  # Some countries have YYYY+ and YYYY- versions of Year, for yrs in
+  # which territory changed (AK and HI in 1959 US, NF in 1949 Canada, etc)
+  # In all cases we discard the "-" versions, and remove the "+"
+  
+  minus_ix = grep('-', tmp$Year)
+  if (length(minus_ix) > 0)  tmp = tmp[-minus_ix, ]
+  
+  plus_ix = grep('+', tmp$Year)
+  if (length(plus_ix) > 0)  tmp$Year[plus_ix] = substr(tmp$Year,1,4)
+  
+  
+  
+  tmp = tmp %>%
+    mutate(Code = this.country,
+           Year = as.integer(Year))
+  
+  #tmp$Age = c(0,1,seq(5,110,5))   # replace with numeric
+  
+  tmp = tmp %>%
+    filter(Age==0)
+  #  group_by(Code, Year) %>%
+  #  summarize(q1 = qx[Age == 0]   %>%
+  #  ungroup()
+  
+  
+  lt_both = rbind(lt_both, tmp)
+  
+  file.remove(filename)
+  
+} # for this.country
+
+earliest.year = 1891
+
+tmp1 = left_join(HFD_tfr, 
+                 dplyr::select(HMD_population, Code, Year, C, contains('W'), iTFR, p2534), 
+                 by=c('Code','Year'))
+
+tmp = left_join(tmp1, 
+                dplyr::select(lt_both, Code, Year, qx), 
+                by=c('Code','Year'))
+
+## calculate the lagged TFR values for each country
+tmp$lagTFR = NA
+
+for (this.country in unique(tmp$Code)) {
+  ix = which(tmp$Code == this.country)
+  tmp$lagTFR[ix] = mean_lag5( tmp$TFR[ix])  
+} # for this.country
+
+tmp = tmp %>%
+  filter(Year >= earliest.year, !is.na(iTFR)) %>%   
+  mutate( CWR    = C/W,
+          mult   = lagTFR/CWR,
+          p15    = W15/W,
+          p20    = W20/W,
+          p25    = W25/W,
+          p30    = W30/W,
+          p35    = W35/W,
+          p40    = W40/W,
+          p45    = W45/W,
+          decade = as.factor( 10 * floor(Year/10)) )
+
+sample_ids <- sample(1:nrow(tmp), 600, replace=FALSE)
+sample_in <- tmp[sample_ids,]
+sample_out <- tmp[-sample_ids,]
+
+reg = lm( mult ~ p2534, data=sample_in) 
+reg2 = lm( mult ~ -1+p15+p20+p25+p30+p35+p40+p45, data=sample_in) 
+
+beta = coef(reg2)
+
+
+###   Importing the Natality files from CDC Wonder for US Counties, 2007-2010   ###
+tfr_county0710 <- read_tsv("Natality, 2007-2010.txt") %>%
+  dplyr::select(County, CountyCode, AgeofMother9Code, Year, Births, FemalePopulation) %>% # selecting specific values
+  mutate(YearCode = as.numeric(Year)) # Year is sometimes weird, this converts it to numeric
+
+###   Importing the Natality file from CDC Wonder for US Counties, 2006-2010   ###
+tfr_county06 <- read_tsv("Natality, 2003-2006.txt")%>%
+  dplyr::select(County, CountyCode, AgeofMother9Code, Year, Births, FemalePopulation) %>%
+  mutate(YearCode = as.numeric(Year)*1)
+
+###   Merging the two Natality files together   ###
+tfr_county <- full_join(tfr_county06, tfr_county0710) %>%
+  filter(!is.na(County))  %>% # dropping all of the extra stuff at the bottom of the CDC's output
+  group_by(County, CountyCode, Year) %>%
+  mutate(fertrat = (Births / as.numeric(FemalePopulation))*5) %>% # Calculating ASFRs
+  summarize(TFR = sum(na.omit(fertrat))) # Calculating the TFR
+
+###   Calculating the lagged TFR values
+tfr_county$lagTFR = NA
+
+for (this.county in unique(tfr_county$CountyCode)) {
+  ix = which(tfr_county$CountyCode == this.county)
+  tfr_county$lagTFR[ix] = mean_lag5( tfr_county$TFR[ix])  
+}
+
+###   Importing the Census 2010 information for US Counties
+census_county <- read_csv("ift_county_data_c2010.csv") %>%
+  mutate(W = (W1517 +  W1819 + W20 + W21 + W2224 + W2529 + W3034 + W3539 + W4044 + W4549), # estimating total number of Women
+         CWR = (m0004 + W0004) / W, # estimating Child-woman ratio
+         p2534 = (W2529 + W3034) / W, # estimating the proportion of women aged 25-34
+         xTFR = (coef(reg)[1] + coef(reg)[2] * p2534) * CWR, # applying the regression coefficients from the HMD/HFD to US counties
+         CountyCode = sprintf("%05d", KEY),
+         Year = 2010) %>%
+  dplyr::select(CountyCode, xTFR, Year) %>%
+  left_join(., tfr_county)
+
+###   Estimating the 50th percentile error rate from the xTFR method
+countyeval <- census_county %>%
+  mutate(num = if_else(lagTFR >0,1,0)) %>%
+  summarize(tot = sum(num, na.rm = T) ,
+            qlagTFR50 = quantile(abs(xTFR / lagTFR -1), 0.5, na.rm=T),
+            qlagTFR90 = quantile(abs(xTFR / lagTFR -1), 0.9, na.rm=T),
+            qlagTFR_abs50 = quantile(abs(xTFR - lagTFR), 0.5, na.rm=T),
+            qlagTFR_abs90 = quantile(abs(xTFR - lagTFR), 0.9, na.rm=T))
+
+### Selecting the lagged TFR from the 5-year time series for merging with the shapefile.
+selectcnties <- census_county %>%
+  filter(!is.na(lagTFR))
+
+
+counties <- counties(cb = TRUE)
+countiestfr <- append_data(counties, census_county, key.shp = "GEOID", key.data = "CountyCode", ignore.duplicates = TRUE) %>%
+  subset(!(STATEFP %in% c("02", "60", "64","66", "68", "69", "70", "74", "15","72", "78")))
+countiestfr2 <- append_data(counties, selectcnties, key.shp = "GEOID", key.data = "CountyCode", ignore.duplicates = TRUE) %>%
+  subset(!(STATEFP %in% c("02", "60", "64","66", "68", "69", "70", "74", "15","72", "78"))) %>%
+  subset(!is.na(xTFR))
+
+states <- states(cb=TRUE)
+
+itfrape50 <- quantile(abs((join$iTFR-join$lagTFR)/join$lagTFR)*100, 0.5, na.rm=T)
+itfrape90 <- quantile(abs((join$iTFR-join$lagTFR)/join$lagTFR)*100, 0.9, na.rm=T)
+xtfrape50 <- quantile(abs((join$xTFR-join$lagTFR)/join$lagTFR)*100, 0.5, na.rm=T)
+xtfrape90 <- quantile(abs((join$xTFR-join$lagTFR)/join$lagTFR)*100, 0.9, na.rm=T)
+bayestfrape50 <- quantile(abs((join$bayesTFR-join$lagTFR)/join$lagTFR)*100, 0.5, na.rm=T)
+bayestfrape90 <- quantile(abs((join$bayesTFR-join$lagTFR)/join$lagTFR)*100, 0.9, na.rm=T)
+
+itfrabs50 <- quantile(abs((join$iTFR-join$lagTFR)), 0.5, na.rm=T)
+itfrabs90 <- quantile(abs((join$iTFR-join$lagTFR)), 0.9, na.rm=T)
+xtfrabs50 <- quantile(abs((join$xTFR-join$lagTFR)), 0.5, na.rm=T)
+xtfrabs90 <- quantile(abs((join$xTFR-join$lagTFR)), 0.9, na.rm=T)
+bayestfrabs50 <- quantile(abs((join$bayesTFR-join$lagTFR)), 0.5, na.rm=T)
+bayestfrabs90 <- quantile(abs((join$bayesTFR-join$lagTFR)), 0.9, na.rm=T)
 
 ```
 
@@ -325,7 +577,22 @@ grid.arrange(f1a,f1b,f1c,f1d, f1e, f1f, f1g, f1h, f1i, f1j, f1k, f1l, ncol=3)
 
 We verify the accuracy of the three derivations using data from the Human Fertility Database and Human Mortality Database [@HFD;@HMD] for nearly 1,800 fertility schedules between 1891 and 2015 across 30 countries (see Table \ref{HFDCountries} in the Supplementary Materials for a complete list). This dataset comprises only complete, official vital event statistics and is the most complete and accurate collection of observed fertility data compiled to date (\textbf{Fig. 1}). We find good agreement between our implied fertility rates and the observed TFRs for all three methods (\textbf{Fig. 1, a, b, c}). Typically demographic parameters increase in accuracy as population sizes increase due to the law of large numbers, and they tend to be more accurate in more recent time periods due to improved data collection practices. However, we find that error rates are independent of population size and scale (\textbf{Fig. 1, d, e, f}) and do not vary across time (\textbf{Fig. 1, g, h, i}), suggesting scale- and temporal- independence uncommon in other indirect methods. Additionally, all three methods on average estimated total fertility within 0.1 observed births, with 90\% of estimates from the poorest performing method within 0.25 births (\textbf{Fig. 1, j, k}). Finally, 90\% of estimates were within 11\% of the observed value, regardless of derivation, with the average estimates within 5\% of the observed TFRs. Taken together, these results suggest a robust method with applicability across space and time, with better performance with additional model parameters. Even the simplest derivation with the least data requirements, implied fertility rate itself, produces accurate estimates of the TFR.
 
-\textbf{Table 1} reports the summary statistics for all three derivations. All three methods produce TFRs within approximately one-tenth of a child, with the best performing method producing estimates within one-twentieth of a child. Ninety percent of estimates are within one-quarter of a birth and have an average error rate less than 5\%. This is significant improvement upon previous indirect estimation methods [@hauer13].
+\begin{table}
+\centering
+\caption{\textbf{Summary statistics of the three derivations of the iTFR using data from the HFD and HMD.} APE is the Absolute Percent Error and RMSE is the Root Mean Squared Error. Overall, the methods produce TFR estimates on average within less than 1/10th of a birth.}
+\medskip
+\resizebox{\textwidth}{!}{\begin{tabular}{lcccc}
+\hline
+\textbf{Method} & \textbf{50th Percentile APE} & \textbf{90th Percentile APE} & \textbf{50th Percentile Absolute Error} & \textbf{90th Percentile Absolute Error} \\ \hline
+iTFR            & `r round(itfrape50,2)`\%   & `r round(itfrape90,2)`\%   & `r round(itfrabs50,3)`   & `r round(itfrabs90,3)`    \\
+xTFR            & `r round(xtfrape50,2)`\%   & `r round(xtfrape90,2)`\%   & `r round(xtfrabs50,3)`  & `r round(xtfrabs90,3)`    \\
+BayesTFR        & `r round(bayestfrape50,2)`\% & `r round(bayestfrape90,2)`\%   & `r round(bayestfrabs50,3)` & `r round(bayestfrabs90,3)` \\
+\hline
+\end{tabular}}
+\end{table}
+
+
+\textbf{Table 1} reports the summary statistics for all three derivations. All three methods produce TFRs within approximately one-tenth of a child, with the best performing method producing estimates within one-twentieth of a child. Ninety percent of estimates are within one-quarter of a birth and have an average error rate less than 5%. This is significant improvement upon previous indirect estimation methods [@hauer13].
 
 ```{r movement, echo= FALSE, message = FALSE, warning = FALSE, fig.cap= paste("**iTFR using Primate Fertility Data**. We test the iTFR using data from seven wild primate species [@bronikowski16;@bronikowskidata]. These species exhibit markedly different menarche and menopause, length of fertility schedule, and fertility tempo from each other and from humans. We plot the observed TFR against the estimated TFR using the iTFR formulation. The solid line is Y=X, and the dashed lines represent +/- 10% of Y=X. Overall the iTFR performs remarkably well across the seven primate species, losing very little accuracy for species with markedly different fertility characteristics.\\label{primates}")}
 
@@ -348,6 +615,90 @@ To test the generalizability of the method, we examine the accuracy of the impli
 
 The three panel plots in (\textbf{Fig. 3}) demonstrate the flexibility of the method, depending on data availability, and how it greatly expands our ability to estimate fertility across geographies, time periods, and subpopulations. The National Center for Health Statistics does not publish fertility information for US Counties with populations fewer than 100,000 for privacy reasons. As a result, fertility can be estimated in only 500 of the approximately 3000 US Counties, significantly hindering the examination of sub-national fertility patterns. We use data collected from the 2010 US Census to produce robust estimates for all US counties using the xTFR method. We are then able to create the first complete county-level map of US fertility (\textbf{Fig. 3, a}). We also extended our analysis of the Human Mortality Database for three additional example countries: France, the Netherlands, and Sweden (\textbf{Fig. 3, b}). The Netherlands began collecting detailed birth records in 1950, France in 1946, and Sweden in 1891. However, these countries collected both mortality and age-sex data considerably earlier (Netherlands in 1850, France in 1816, and Sweden in 1751). By using the BayesTFR method, we can reconstruct historical TFRs to create a time series of fertility data well before birth record collection began, significantly improving our ability to explore historical fertility patterns from up to 250 years ago. In (\textbf{Fig. 3, c}) we use the basic iTFR method to estimate TFRs by household income in the United States using data from the US Census Bureau's American Community Survey (ACS). The United States does not record fertility or mortality data by household income, precluding the use of the BayesTFR method. In addition, the ACS data have more statistical accuracy when estimates are pooled, precluding the use of the xTFR method, due to pooling women by age. However, by linking age-sex data to household income, we estimate TFR by income, a subpopulation previously unmeasured.
 
+```{r fig3, echo= FALSE, message = FALSE, warning = FALSE, fig.height=6.5, fig.cap= paste("**Revealing latent fertility patterns.** We demonstrate that the iTFR framework can be used in a variety of situations. (a) uses the xTFR method to estimate total fertility rates in US Counties based on Census 2010 data. The National Center for Health Statistics masks fertility data for counties with fewer than 100,000 people for privacy reasons making fertility estimates possible for only 524 of the approximately 3000 US counties. The darker counties are the counties with actual fertility data. (b) uses the BayesTFR method to estimate historic fertility rates in three European countries using data from the Human Mortality Database. The vertical lines correspond to when birth registration began in each country. The shaded regions represent the 90th percentile. (c) uses the iTFR method on household income data from the Census Bureau's American Community Survey. Birth registration is not recorded by income group, but we are able to estimate fertility rates using household survey data. These three examples represent previously inestimable populations by geography, time period, and sub-population and demonstrate the methodological flexibility of the iTFR framework. \\label{figure3}")}
+
+pal <- c("#4475B5", "#849EBA", "#BFCCBD", "#ffffbf", "#F9B984", "#ED7550", "#D62F26")
+
+a<- tm_shape(countiestfr, projection = "laea_NA") +
+  tm_polygons("xTFR",
+              palette = pal , 
+              breaks= c(-Inf, 1.0, 1.5, 2.1, 2.5, 3.0, 3.5, Inf),
+              auto.palette.mapping = FALSE, 
+              id = "GEOID", 
+              #showNA = TRUE, 
+              border.col = "gray50", 
+              border.alpha = 0.4,
+              alpha = 0.4,
+              legend.show = FALSE
+              #style ="jenks",
+              #n = 6
+  ) +
+ tm_shape(countiestfr2) +
+ tm_polygons("xTFR",
+              palette = pal , 
+              breaks= c(-Inf, 1.0, 1.5, 2.1, 2.5, 3.0, 3.5, Inf),
+              auto.palette.mapping = FALSE, 
+              id = "GEOID", 
+              #showNA = TRUE, 
+              colorNA = NULL,
+              border.col = "black", 
+              lwd = 0.5
+              #border.alpha = 0.5
+              #legend.show = FALSE
+              #style ="jenks",
+              #n = 6
+  ) +
+ tm_shape(states) +
+  tm_borders(lwd=2, col="black", alpha = 0.5) +
+ tm_credits("a", position=c("left", "top"))
+
+results <- read.csv('hmdall_06172017.csv')
+
+#my_groba = grobTree(textGrob("a", x=0.1, y=0.95, hjust=0, gp=gpar(col="black", size=6)))
+my_grobb = grobTree(textGrob("b", x=0.1, y=0.9, hjust=0, gp=gpar(col="black", size=6)))
+my_grobc = grobTree(textGrob("c", x=0.1, y=0.9, hjust=0, gp=gpar(col="black", size=6)))
+
+f3b <- ggplot() +
+  annotation_custom(my_grobb)+
+  geom_line(data=subset(results, Code %in% c("NLD", "SWE", "FRATNP")), aes(x=Year, y=post_mean, color=factor(Code, labels = c("France", "Netherlands", "Sweden")))) +
+  geom_ribbon(data=subset(results, Code %in% c("NLD", "SWE", "FRATNP")), aes(x=Year, ymin=Q10, ymax=Q90,fill=factor(Code, labels = c("France", "Netherlands", "Sweden"))), alpha=0.2, show.legend = FALSE) +
+  geom_ribbon(data=subset(results, Code =="NLD" & Year <=1950), aes(x=Year, ymin=Q10, ymax=Q90), fill="green", alpha=0.2, show.legend = FALSE) +
+  geom_ribbon(data=subset(results, Code =="SWE" & Year <=1891), aes(x=Year, ymin=Q10, ymax=Q90), fill="blue", alpha=0.2, show.legend = FALSE) +
+  geom_ribbon(data=subset(results, Code =="FRATNP" & Year <=1946), aes(x=Year, ymin=Q10, ymax=Q90), fill="red", alpha=0.2, show.legend = FALSE) +
+  theme_bw() +
+  theme(text=element_text(face='bold', size = 8),
+        legend.text=element_text(size=5))+
+  theme(legend.position=c(0.87,0.8),
+        legend.key.size = unit(0.3, "cm")) +
+  labs(x='Year', y='BayesTFR', color = "Country") +
+  geom_vline(xintercept=1950,lty=1, lwd=1, color="Green") +
+  geom_vline(xintercept=1891,lty=1, lwd=1, color="Blue") +
+  geom_vline(xintercept=1946,lty=1, lwd=1, color="Red") +
+  scale_x_continuous(breaks = c(1750,1800,1850, 1900, 1950, 2000))
+
+income <-read.xlsx("test_income_itfr_06222017.xlsx")
+
+incomelabels <- c("0-24", "25-49", "50-74", "75-99", "100-124", "125-149", "150-199", "200-249", "250-499", "500-999", "1000+")
+
+f3c <- ggplot() +
+  annotation_custom(my_grobc) +
+  geom_line(data=income, aes(x=Income.Bracket, y=iTFR)) +
+  ylim(0,+2.50) +
+  theme_bw() +
+  #theme(aspect.ratio=1) +
+  labs(x="Income (in 000s)")+
+  theme(text=element_text(face='bold'), axis.text.x = element_text(angle=45, hjust=1)) +
+  scale_x_discrete(limits=incomelabels)
+
+grid.newpage()
+pushViewport(viewport(layout=grid.layout(3,2)))
+print(f3b, vp = viewport(layout.pos.col = 1, layout.pos.row = c(3)))
+print(f3c, vp = viewport(layout.pos.col =2, layout.pos.row =c(3)))
+
+print(a, vp = viewport(layout.pos.row =c(1,2)))
+```
+
+
 Researchers can tailor the method they use to the data available or the research question due to the flexible data requirements, a rare feature in methodologies, and can do so with confidence in the accuracy of the resultant estimates. As we show in \textbf{Fig 3.}, the applications of such a robust, simple method cannot be understated. The implied fertility rate opens the door for sophisticated fertility analyses in many previously inestimable populations of interest to sociologists [@lesthaeghe14], economists [@hotz1997economics], anthropologists [@greenhalgh1995situating], epidemiologists [@paulson2002pregnancy], and population geographers [@sorichetta2015high]. The parameter-free, scale-, time-, and species- robust technique can estimate fertility rates even in areas where such data are not collected systematically as it relies only on age-sex data -- ubiquitous basic data collected in censuses across scale and time.
 
 We anticipate this method will open up new lines of inquiry into human fertility patterns. The global demographic transition is typically examined post-1950[@bongaars09]; however, using age-sex structure data, researchers can examine the global demographic transition in greater detail further back in time. Relatedly, re-creations of historic human fertility rates rely on estimates of energy balance and the relative metabolic load or a universal density-dependent demographic model [@bocquet11]. Using the methods proposed here, anthropologists could re-create historic human fertility rates directly from skeletal remains or cemetery information while accounting for underenumeration and child-mortality. Finally, there has been an increased demand for high-resolution gridded population datasets related to climate change research [@jones15;@cincotta00]. Our methods could be used to estimate fertility levels and change as either inputs for gridded population projections or for the production of gridded fertility level datasets due to the demonstrated scale independence. 
@@ -369,7 +720,9 @@ The authors declare that they have no competing financial interests.
   \centering
   \caption{Human Fertility Database Countries and years of data availability.}
     \begin{tabular}{llll}
+\hline
     Country & Data Availability & Country & Data Availability\\
+\hline
 Austria	& 1951-2014	& Netherlands	& 1950-2012\\
 Belarus	 & 1964-2014	& Norway	& 1967-2014\\
 Bulgaria	& 1947-2009	& Portugal	& 1940-2015\\

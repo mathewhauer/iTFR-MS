@@ -12,8 +12,8 @@
 
 rm(list=ls())
 #graphics.off()
-if (.Platform$OS.type == 'windows') windows(record=TRUE)
-setwd("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR")
+#if (.Platform$OS.type == 'windows') windows(record=TRUE)
+#setwd("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR")
 library(HMDHFDplus)
 library(dplyr)
 library(tidyverse)
@@ -75,7 +75,7 @@ lt_both = data.frame()
 # set up data from Human MORTALITY database files
 for (this.country in unique(HFD_expos$Code)) {
   filename = paste0(this.country,'.Population5.txt')
-  unzip(zipfile='HMD_population.zip', 
+  unzip(zipfile='C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/HMD_population.zip', 
         files=paste0('Population5/',filename),
         junkpaths=TRUE)
   
@@ -204,12 +204,12 @@ beta = coef(reg2)
 
 
 ###   Importing the Natality files from CDC Wonder for US Counties, 2007-2010   ###
-tfr_county0710 <- read_tsv("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR/figures/figure3/Natality, 2007-2010.txt") %>%
+tfr_county0710 <- read_tsv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/Natality, 2007-2010.txt") %>%
   dplyr::select(County, CountyCode, AgeofMother9Code, Year, Births, FemalePopulation) %>% # selecting specific values
   mutate(YearCode = as.numeric(Year)) # Year is sometimes weird, this converts it to numeric
 
 ###   Importing the Natality file from CDC Wonder for US Counties, 2006-2010   ###
-tfr_county06 <- read_tsv("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR/figures/figure3/Natality, 2003-2006.txt")%>%
+tfr_county06 <- read_tsv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/Natality, 2003-2006.txt")%>%
   dplyr::select(County, CountyCode, AgeofMother9Code, Year, Births, FemalePopulation) %>%
   mutate(YearCode = as.numeric(Year)*1)
 
@@ -229,7 +229,7 @@ for (this.county in unique(tfr_county$CountyCode)) {
 }
 
 ###   Importing the Census 2010 information for US Counties
-census_county <- read_csv("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR/figures/figure3/ift_county_data_c2010.csv") %>%
+census_county <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/ift_county_data_c2010.csv") %>%
   mutate(W = (W1517 +  W1819 + W20 + W21 + W2224 + W2529 + W3034 + W3539 + W4044 + W4549), # estimating total number of Women
          CWR = (m0004 + W0004) / W, # estimating Child-woman ratio
          p2534 = (W2529 + W3034) / W, # estimating the proportion of women aged 25-34
@@ -287,7 +287,7 @@ a<- tm_shape(countiestfr, projection = "laea_NA") +
               #showNA = TRUE, 
               colorNA = NULL,
               border.col = "black", 
-              lwd = 1.5
+              lwd = 0.5
               #border.alpha = 0.5
               #legend.show = FALSE
               #style ="jenks",
@@ -296,11 +296,12 @@ a<- tm_shape(countiestfr, projection = "laea_NA") +
  tm_shape(states) +
   tm_borders(lwd=2, col="black", alpha = 0.5)
 
-results <- read.csv('U:/0 govserv/ADP/Manuscripts/1. Submitted Localized Estiamtes fo the TFR/hmdall_06172017.csv')
+results <- read.csv('hmdall_06172017.csv')
 
 my_groba = grobTree(textGrob("a", x=0.1, y=0.95, hjust=0, gp=gpar(col="black", size=6)))
 my_grobb = grobTree(textGrob("b", x=0.1, y=0.95, hjust=0, gp=gpar(col="black", size=6)))
 my_grobc = grobTree(textGrob("c", x=0.1, y=0.95, hjust=0, gp=gpar(col="black", size=6)))
+
 f3b <- ggplot() +
   annotation_custom(my_grobb)+
   geom_line(data=subset(results, Code %in% c("NLD", "SWE", "FRATNP")), aes(x=Year, y=post_mean, color=factor(Code, labels = c("France", "Netherlands", "Sweden")))) +
@@ -309,15 +310,17 @@ f3b <- ggplot() +
   geom_ribbon(data=subset(results, Code =="SWE" & Year <=1891), aes(x=Year, ymin=Q10, ymax=Q90), fill="blue", alpha=0.2, show.legend = FALSE) +
   geom_ribbon(data=subset(results, Code =="FRATNP" & Year <=1946), aes(x=Year, ymin=Q10, ymax=Q90), fill="red", alpha=0.2, show.legend = FALSE) +
   theme_bw() +
-  theme(text=element_text(face='bold')) +
-  theme(legend.position=c(0.87,0.8)) +
+  theme(text=element_text(face='bold', size=8),
+        legend.text=element_text(size=5)) +
+  theme(legend.position=c(0.87,0.8),
+        legend.key.size = unit(1, "cm")) +
   labs(x='Year', y='BayesTFR', color = "Country") +
   geom_vline(xintercept=1950,lty=1, lwd=1, color="Green") +
   geom_vline(xintercept=1891,lty=1, lwd=1, color="Blue") +
   geom_vline(xintercept=1946,lty=1, lwd=1, color="Red") +
   scale_x_continuous(breaks = c(1750,1800,1850, 1900, 1950, 2000))
 
-income <-read.xlsx("U:/0 govserv/ADP/Manuscripts/1. Schmertmann iTFR/test_income_itfr_06222017.xlsx")
+income <-read.xlsx("test_income_itfr_06222017.xlsx")
 
 incomelabels <- c("0-24", "25-49", "50-74", "75-99", "100-124", "125-149", "150-199", "200-249", "250-499", "500-999", "1000+")
 
@@ -331,8 +334,8 @@ f3c <- ggplot() +
   theme(text=element_text(face='bold'), axis.text.x = element_text(angle=45, hjust=1)) +
   scale_x_discrete(limits=incomelabels)
 
-b<- grid.arrange(f3b, f3c, ncol=2)
-grid.arrange(a, b, ncol=1)
+grid.arrange(f3b, f3c, ncol=2)
+
 
 grid.newpage()
 pushViewport(viewport(layout=grid.layout(3,2)))
