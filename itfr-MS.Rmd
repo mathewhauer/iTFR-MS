@@ -28,16 +28,18 @@ biblio-style: nature
 header-includes:
 - \usepackage[all]{nowidow}
 - \usepackage{rotating}
+- \usepackage{amsmath}
 #- \usepackage{lineno}
 #- \linenumbers
 
 
 ---
-* Corresponding author. hauer@uga.edu. p: 706-542-9369.
+\* Corresponding author. hauer\@uga.edu. p: 706-542-9369.
 
 ^1^ Carl Vinson Institute of Government, University of Georgia. 201 N. Milledge Ave. Athens, GA USA 30602.
 
 ^2^ Department of Economics, Florida State University.
+
 ^3^ Center for Demography and Population Health, Florida State University.
 
 \newpage
@@ -49,7 +51,14 @@ knitr::opts_chunk$set(echo = TRUE)
 rm(list=ls())
 library(tidyverse)
 library(ggrepel)
+library(grid)
+library(gridExtra)
+library(HMDHFDplus)
+library(scales)
+library(dplyr)
+```
 
+```{r basecode, include = FALSE, cache =TRUE}
 PRIM_DATA <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/Bronikowski.LifeTables.SciData2016.csv")
 
 d <- PRIM_DATA %>%
@@ -74,6 +83,35 @@ cw <- inner_join(children, women)
 
 combined <- inner_join(cw, TFR_table) %>%
   mutate(iTFR = (child/Women) * fertwidth)
+
+
+my_groba = grobTree(textGrob("a", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobb = grobTree(textGrob("b", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobc = grobTree(textGrob("c", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobd = grobTree(textGrob("d",x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobe = grobTree(textGrob("e", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobf = grobTree(textGrob("f", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobg = grobTree(textGrob("g", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobh = grobTree(textGrob("h", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobi = grobTree(textGrob("i", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobj = grobTree(textGrob("j", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobk = grobTree(textGrob("k", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+my_grobl = grobTree(textGrob("l", x=0.9, y=0.1, hjust=0, gp=gpar(col="black", size=6)))
+
+z <- read.csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/bayesitfr_hmdhfd3.csv") %>%
+  select(Code, Year, iTFR, lagTFR, bayesTFR=post_mean)
+
+bayesTFR <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/bayesitfr_hmdhfd3.csv")
+xitfr <- read_csv("C:/Users/Matt/Documents/Matt - Work Stuff/r code/myrepo/iTFR-MS/xTFR_06082017.csv")
+
+
+join = inner_join(xitfr, z, c("Code", "Year"))
+
+join = join %>%
+  select(Code, Year, iTFR=iTFR.x, xTFR, C,lagTFR=lagTFR.x, bayesTFR)
+
+
+
 ```
 
 # Main Text
@@ -118,6 +156,173 @@ Equation \ref{eq:implied TFR} resolves the limitations of the conventional techn
 
 To test the flexibility of our measure and its ability to estimate TFR in a variety of data situations, we present three derivations of the implied fertility rate (see supplementary material) with increasing complexity and subsequent data requirements -– a deterministic formulation based on the algebraic rearrangement, iTFR (equation: \ref{eq:implied TFR})(\textbf{Fig. 1, left column}), a regression-based formulation conditional on the age-structure (essentially incorporating $1/\bar{p}$ into the estimation), xTFR (equation: \ref{eq:kTFR})(\textbf{Fig. 1, middle column}), and a complete Bayesian approach based on child- and maternal-mortality, the female reproductive age-structure, and potential underenumeration of children and reproductive-age women (incorporating both $1/\bar{p}$ and $1/s_0$), BayesTFR (equation: \ref{eq:marginal posterior of TFR})(\textbf{Fig. 1, right column}). These deviations allow us to quantify the source of error in equation \ref{eq:implied TFR}. 
 
+```{r fig1, echo= FALSE, message = FALSE, warning = FALSE, fig.height=6.5, fig.cap= paste("**The implied Total Fertility Rate.** We compare the performance of three formulations of the implied total fertility rate against observed total fertility rates. (a, d, g) in the first column use $p(TFR)=n(C/W)$; (b, e, h) in the second column use $p(TFR)=x(C/W)$ where $x$ is derived from the ratio of women aged 25-34 to all women of childbearing ages; (c, f, i) in the third column estimates TFR conditional on $C,W,k,q_5,\\beta$. (a, b, c) are scatter plots of the estimated TFR against the observed 5-year average TFR from fertility schedules in the Human Fertility Database for 1891-2015. The solid line is Y=X, and the dashed lines represent +/- 10% of Y=X. (d, e, f) demonstrate the percent error, M(TFR), for each method against population sized $n$. The dashed lines represent 10%. (g, h, i) plot the percent errors, M(TFR), for each method for the period 1891-2015, $t$. The dashed lines represent 10%. (j) plots the distribution of algebraic errors for each method. The dashed lines correspond to the 10th and 90th percentile errors for each method. (k) plots the distribution of absolute algebraic errors. (l) plots the distribution of absolute percent errors for each method. The solid lines correspond to the 50th percentile error, and the dashed lines correspond to the 90th percentile errors for each method. Regardless of formulation, the iTFR demonstrates scale and time independence to a high degree of accuracy. \\label{figure1}")}
+
+###   Making the Figure 1 graphic
+f1a <- ggplot(data=join, aes(x=lagTFR, y=iTFR)) +
+  geom_text(x=1.5, y=3.5, label="iTFR", col='red', size=6)+
+  annotation_custom(my_groba)+
+  geom_point(size=1, alpha=.50,color='gray') +
+  geom_abline(intercept=0,slope=1) +
+  theme_bw() +
+  theme(legend.position="none")+
+  theme(text=element_text(face='bold')) +
+  xlim(0.9,4.1) + ylim(0.9,4.1) +
+  labs(x='TFR (Data)', y='p(TFR)') +
+  geom_abline(slope = 0.9, lty=2, lwd=1, col='black') +
+  geom_abline(slope = 1.1, lty=2, lwd=1, col='black') 
+f1b <- ggplot(data=join, aes(x=lagTFR, y=xTFR, text = paste(Code, Year))) +
+  geom_text(x=1.5, y=3.5, label="xTFR", col='blue', size=6)+
+  annotation_custom(my_grobb)+
+  geom_point(size=1, alpha=.50,color='gray') +
+  geom_abline(intercept=0,slope=1) +
+  geom_abline(intercept=0, slope = 0.9, lty=2, lwd=1) +
+  geom_abline(intercept=0, slope = 1.1, lty=2, lwd=1) +
+  theme_bw() +
+  theme(text=element_text(face='bold')) +
+  xlim(0.9,4.1) + ylim(0.9,4.1) +
+  labs(x='TFR (Data)', y='p(TFR)') 
+f1c <- ggplot(data=join, aes(x=lagTFR, y=bayesTFR, text = paste(Code))) +
+  geom_text(x=2, y=3.5, label="BayesTFR", col='green', size=6)+
+  annotation_custom(my_grobc)+
+  geom_point(size=1, alpha=.50,color='gray') +
+  geom_abline(intercept=0,slope=1) +
+  theme_bw() +
+  theme(text=element_text(face='bold')) +
+  xlim(0.9,4.1) + ylim(0.9,4.1) +
+  labs(x='TFR (Data)', y='p(TFR)') +
+geom_abline(slope = 0.9, lty=2, lwd=1, col='black') +
+  geom_abline(slope = 1.1, lty=2, lwd=1, col='black') 
+
+
+f1d <- ggplot(data=join, aes(x=C, y=(iTFR-lagTFR)/lagTFR*100)) +
+  annotation_custom(my_grobd)+
+  geom_point(size=1, alpha=.50,color='gray')+
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 10, lty=2, lwd=1)+
+  geom_hline(yintercept = -10, lty=2, lwd=1)+
+  theme_bw() +
+    theme(text=element_text(face='bold')) +
+  ylim(-30,30) +
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x))) +
+  labs( x='Population, n', y='M(TFR)') 
+f1e<-ggplot(data=join, aes(x=C, y=(xTFR-lagTFR)/lagTFR*100)) +
+  annotation_custom(my_grobe)+
+  geom_point(size=1, alpha=.50,color='gray')+
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 10, lty=2, lwd=1)+
+  geom_hline(yintercept = -10, lty=2, lwd=1)+
+  theme_bw() +
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x))) +
+  theme(text=element_text(face='bold')) +
+  ylim(-30,30) +
+  labs(x='Population, n', y='M(TFR)')
+f1f <- ggplot(data=join, aes(x=C, y=(bayesTFR-lagTFR)/lagTFR*100)) +
+  annotation_custom(my_grobf)+
+  geom_point(size=1, alpha=.50,color='gray')+
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 10, lty=2, lwd=1)+
+  geom_hline(yintercept = -10, lty=2, lwd=1)+
+  theme_bw() +
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+                labels = trans_format("log10", math_format(10^.x))) +
+  theme(text=element_text(face='bold')) +
+  ylim(-30,30) +
+  labs( x='Population, n', y='M(TFR)')
+
+
+f1g<- ggplot(data=join, aes(x=Year, y=(iTFR-lagTFR)/lagTFR*100)) +
+  annotation_custom(my_grobg)+
+  geom_point(size=1, alpha=.50,color='gray')+
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 10, lty=2, lwd=1)+
+  geom_hline(yintercept = -10, lty=2, lwd=1)+
+  theme_bw() +
+  theme(text=element_text(face='bold')) +
+  xlim(1891,2015) + ylim(-30,30) +
+  labs(x='Time, t', y='M(TFR)') 
+f1h<- ggplot(data=join, aes(x=Year, y=(xTFR-lagTFR)/lagTFR*100)) +
+  annotation_custom(my_grobh)+
+  geom_point(size=1, alpha=.50,color='gray')+
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 10, lty=2, lwd=1)+
+  geom_hline(yintercept = -10, lty=2, lwd=1)+
+  theme_bw() +
+  theme(text=element_text(face='bold')) +
+  xlim(1891,2015) + ylim(-30,30) +
+  labs(x='Time, t', y='M(TFR)') 
+f1i<- ggplot(data=join, aes(x=Year, y=(bayesTFR-lagTFR)/lagTFR*100)) +
+  annotation_custom(my_grobi)+
+  geom_point(size=1, alpha=.50,color='gray')+
+  geom_hline(yintercept = 0) +
+  geom_hline(yintercept = 10, lty=2, lwd=1)+
+  geom_hline(yintercept = -10, lty=2, lwd=1)+
+  theme_bw() +
+  theme(text=element_text(face='bold')) +
+  xlim(1891,2015) + ylim(-30,30) +
+  labs(x='Time, t', y='M(TFR)') 
+
+
+f1j<- ggplot() +
+  annotation_custom(my_grobj)+
+  geom_density(data=join, aes(x=iTFR-lagTFR), adjust=1.5,fill='red',col='red', lwd=1, alpha=.20) +
+  geom_density(data=join, aes(x=bayesTFR-lagTFR),adjust=1.5, fill='green',col='green', lwd=1, alpha=.20) +
+  geom_density(data=join, aes(x=xTFR-lagTFR), adjust=1.5, fill="blue", col="blue", lwd=1, alpha=.20)+
+  geom_vline(xintercept=0) +
+  theme_bw() +
+  xlim(-0.5,0.5) + 
+  geom_vline(data=join, aes(xintercept=quantile((iTFR-lagTFR), 0.9, na.rm=T)), lty=2, lwd=0.5, color="red") +
+  geom_vline(data=join, aes(xintercept=quantile((iTFR-lagTFR), 0.1, na.rm=T)), lty=2, lwd=0.5, color="red") +
+  geom_vline(data=join, aes(xintercept=quantile((bayesTFR-lagTFR), 0.9, na.rm=T)), lty=2, lwd=0.5, color="green")+
+  geom_vline(data=join, aes(xintercept=quantile((bayesTFR-lagTFR), 0.1, na.rm=T)), lty=2, lwd=0.5, color="green")+
+  geom_vline(data=join, aes(xintercept=quantile((xTFR-lagTFR), 0.9, na.rm=T)), lty=2, lwd=0.5, color="blue")+
+  geom_vline(data=join, aes(xintercept=quantile((xTFR-lagTFR), 0.1, na.rm=T)), lty=2, lwd=0.5, color="blue")+
+  theme(text=element_text(face='bold')) +
+  labs(x='Algebraic(error)',
+       y='Density')
+f1k<- ggplot() +
+  annotation_custom(my_grobk)+
+  geom_density(data=join, aes(x=abs((iTFR-lagTFR))), adjust=1.5,fill='red',col='red', lwd=1, alpha=.20) +
+  geom_density(data=join, aes(x=abs((bayesTFR-lagTFR))),adjust=1.5, fill='green',col='green', lwd=1, alpha=.20) +
+  geom_density(data=join, aes(x=abs((xTFR-lagTFR))), adjust=1.5, fill="blue", col="blue", lwd=1, alpha=.20)+
+    geom_vline(xintercept=0) +
+  theme_bw() +
+  xlim(0,+0.50) + 
+  geom_vline(data=join, aes(xintercept=quantile(abs((iTFR-lagTFR)), 0.5, na.rm=T)), lty=1, lwd=0.5, color="red") +
+  geom_vline(data=join, aes(xintercept=quantile(abs((xTFR-lagTFR)), 0.5, na.rm=T)), lty=1, lwd=0.5, color="blue") +
+  geom_vline(data=join, aes(xintercept=quantile(abs((bayesTFR-lagTFR)), 0.5, na.rm=T)), lty=1, lwd=0.5, color="green")+
+  geom_vline(data=join, aes(xintercept=quantile(abs((iTFR-lagTFR)), 0.9, na.rm=T)), lty=2, lwd=0.5, color="red")+
+  geom_vline(data=join, aes(xintercept=quantile(abs((xTFR-lagTFR)), 0.9, na.rm=T)), lty=2, lwd=0.5, color="blue")+
+  geom_vline(data=join, aes(xintercept=quantile(abs((bayesTFR-lagTFR)), 0.9, na.rm=T)), lty=2, lwd=0.5, color="green")+
+  theme(text=element_text(face='bold')) +
+  labs(x='Absolute Algebraic(error)',
+       y='Density')
+f1l<- ggplot() +
+  annotation_custom(my_grobl)+
+  geom_density(data=join, aes(x=abs((iTFR-lagTFR)/lagTFR)*100), adjust=1.5,fill='red',col='red', lwd=1, alpha=.20) +
+  geom_density(data=join, aes(x=abs((bayesTFR-lagTFR)/lagTFR)*100),adjust=1.5, fill='green',col='green', lwd=1, alpha=.20) +
+  geom_density(data=join, aes(x=abs((xTFR-lagTFR)/lagTFR)*100), adjust=1.5, fill="blue", col="blue", lwd=1, alpha=.20)+
+  geom_vline(xintercept=0) +
+  theme_bw() +
+  geom_vline(data=join, aes(xintercept=quantile(abs((iTFR-lagTFR)/lagTFR)*100, 0.5, na.rm=T)), lty=1, lwd=0.5, color="red") +
+  geom_vline(data=join, aes(xintercept=quantile(abs((xTFR-lagTFR)/lagTFR)*100, 0.5, na.rm=T)), lty=1, lwd=0.5, color="blue") +
+  geom_vline(data=join, aes(xintercept=quantile(abs((bayesTFR-lagTFR)/lagTFR)*100, 0.5, na.rm=T)), lty=1, lwd=0.5, color="green")+
+  geom_vline(data=join, aes(xintercept=quantile(abs((iTFR-lagTFR)/lagTFR)*100, 0.9, na.rm=T)), lty=2, lwd=0.5, color="red")+
+  geom_vline(data=join, aes(xintercept=quantile(abs((xTFR-lagTFR)/lagTFR)*100, 0.9, na.rm=T)), lty=2, lwd=0.5, color="blue")+
+  geom_vline(data=join, aes(xintercept=quantile(abs((bayesTFR-lagTFR)/lagTFR)*100, 0.9, na.rm=T)), lty=2, lwd=0.5, color="green")+
+  theme(text=element_text(face='bold')) +
+  labs(x='Absolute Percent(error)',
+       y='Density')
+
+
+
+grid.arrange(f1a,f1b,f1c,f1d, f1e, f1f, f1g, f1h, f1i, f1j, f1k, f1l, ncol=3)
+
+
+```
+
 We verify the accuracy of the three derivations using data from the Human Fertility Database and Human Mortality Database [@HFD;@HMD] for nearly 1,800 fertility schedules between 1891 and 2015 across 30 countries (see Table \ref{HFDCountries} in the Supplementary Materials for a complete list). This dataset comprises only complete, official vital event statistics and is the most complete and accurate collection of observed fertility data compiled to date (\textbf{Fig. 1}). We find good agreement between our implied fertility rates and the observed TFRs for all three methods (\textbf{Fig. 1, a, b, c}). Typically demographic parameters increase in accuracy as population sizes increase due to the law of large numbers, and they tend to be more accurate in more recent time periods due to improved data collection practices. However, we find that error rates are independent of population size and scale (\textbf{Fig. 1, d, e, f}) and do not vary across time (\textbf{Fig. 1, g, h, i}), suggesting scale- and temporal- independence uncommon in other indirect methods. Additionally, all three methods on average estimated total fertility within 0.1 observed births, with 90\% of estimates from the poorest performing method within 0.25 births (\textbf{Fig. 1, j, k}). Finally, 90\% of estimates were within 11\% of the observed value, regardless of derivation, with the average estimates within 5\% of the observed TFRs. Taken together, these results suggest a robust method with applicability across space and time, with better performance with additional model parameters. Even the simplest derivation with the least data requirements, implied fertility rate itself, produces accurate estimates of the TFR.
 
 \textbf{Table 1} reports the summary statistics for all three derivations. All three methods produce TFRs within approximately one-tenth of a child, with the best performing method producing estimates within one-twentieth of a child. Ninety percent of estimates are within one-quarter of a birth and have an average error rate less than 5\%. This is significant improvement upon previous indirect estimation methods [@hauer13].
@@ -152,9 +357,11 @@ We anticipate this method will open up new lines of inquiry into human fertility
 The authors declare that they have no competing financial interests.
 
 \newpage
+\newpage
 
 # Supplementary Information
-## **Data:**
+
+## Data:
 
 **Human Fertility Database**. Data on fertility patterns come from the Human Fertility Database[@HFD]. These data represent the most complete and accurate historical pattern of human fertility currently available. The fertility rates are entirely based on official vital statistics and are not modelled. The HFD covers fertility schedules for 34 countries between 1891 and 2015. In total, the HFD contains 1,870 country-years of total fertility rates.
 
@@ -207,7 +414,7 @@ TFR is then calculated as
     = \: n\cdot\displaystyle\sum_{x=\alpha}^{\beta-n}\frac{B_x}{W_x} \label{eq:exact TFR} 
 \end{equation}
 
-Fertility calculations imply that the expected number of surviving children of both sexes per woman in reproductive age groups at the end of a five-year period, which we call $K_a$ is
+Fertility calculations imply that the expected number of surviving children of both sexes per woman in reproductive age groups at the end of an $n$-year period, which we call $K_a$ is
 
 \begin{eqnarray}
 K_{a}\, & = & \,\,\left[\frac{L_{a-5}}{L_{a}}\,\cdot F_{a-5}\;+\; F_{a}\right]\,\,\frac{L_{0}}{2}\label{eq:Ka}\\
@@ -241,10 +448,10 @@ We can now rearrange equation (\ref{eq:CWRatio}) to solve for TFR such that
 TFR\,=\,\frac{1}{s_{0}}\cdot\frac{1}{\bar{p}}\cdot\frac{C}{W}\label{eq:s0TFR}
 \end{equation}
 
-If women of childbearing ages in a given population are uniformly distributed across the fertility interval, then $\bar{p} =n$, where $n$ is the width of the fertility interval. If we assume near-zero child-mortality ($S_0=1$) and that women of childbearing ages are uniformly distributed across the fertility interval ( $\bar{p}=n$). We can then further simplify equation (\ref{eq:s0TFR}) into the implied total fertility rate, or the fertility rate that is implied by the age-sex structure of a given population
+If women of childbearing ages in a given population are uniformly distributed across the fertility interval, then $\bar{p} =n$, where $n$ is the width of the fertility interval. If we assume near-zero child-mortality ($S_0=1$) and that women of childbearing ages are uniformly distributed across the fertility interval ( $\bar{p}=n$). We can then further simplify equation (\ref{eq:s0TFR}) into the implied total fertility rate, or the fertility rate that is implied by the age-sex structure of a given population. Here we have broadened the equation to include all possible widths of the fertility interval.
 
 \begin{equation}
-iTFR=n\cdot\frac{C}{W}
+iTFR =\frac{\beta - \alpha}{n}\cdot \frac{ _{n}C_0}{W} 
 \end{equation}
 
 This derivation is remarkably similar to the general fertility rate ($B_t/_{40}W_{10}$) and age-specific fertility ($_nF_x = _nB_x/_nW_x$) with children substituted for births in both equations. This allows the iTFR to convert the C/W into $_nF_x$ and by extension, produce the indirect equivalent of the total fertility rate that is implied or intrinsic to the observed population age-sex structure freeing the estimation of TFR from its heavy data requirements.
@@ -290,8 +497,8 @@ where $TFR$ is the total fertility rate and $phi_a$ is the proportion of lifetim
 
 The $\gamma$ indices are modelled as $\gamma=m+X\beta$ where $m$ and $X$ are constants derived from empirical data (see section X.X) and $\beta$ are shape parameters. These three fertility parameters ($TFR$, $\beta_1$, $\beta_2$) yield eight 5-year fertility rates ($F_{10}...F_{45}:\beta \rightarrow \gamma \rightarrow \phi$ and $\frac{TFR}{5} \cdot \phi = F$.
 
-<!--We use a completely uninformative, improper prior for $TFR$: $ f(TFR)\propto 1$. We assign higher probability to more typical fertility patterns by building the prior for $\beta$ coefficients from information in the HFD and the US Census Bureau's International Database [@CensusIDB] to create priors of the shape of the fertility schedule by age. We calculate $\gamma$ indices for $F_{a}$ empirical schedules (n=226 from the IDB, n=411 from the HFD), and then performed a singular value decomposition on the (de-meaned) 6x637 $\gamma$ array. This produces a model in which each of the 637 columns of $\gamma$ could be well approximated by the mean vector plus a weighted sum of two principal components: $\gamma_{i}\approx m+X\beta_{i}$. We scale the two columns of $X$ so that $\beta_{i}$ coefficients
-have zero means, unit variances, and zero covariances over the empirical data $i=1 \ldots 637$. These calculations produce constants $X= \begin{matrix}0 & 0.27 & 0.54 & 0.73 & 0.88 & 1.04 & 1.52\\0 & 0.32 & 0.51 & 0.51 & 0.35 & 0.05 & -0.72 \end{matrix}^{\prime}$, with which we use the prior !-->
+We use a completely uninformative, improper prior for $TFR$: $f(TFR)\propto 1$. We assign higher probability to more typical fertility patterns by building the prior for $\beta$ coefficients from information in the HFD and the US Census Bureau's International Database [@CensusIDB] to create priors of the shape of the fertility schedule by age. We calculate $\gamma$ indices for $F_{a}$ empirical schedules (n=226 from the IDB, n=411 from the HFD), and then performed a singular value decomposition on the (de-meaned) 6x637 $\gamma$ array. This produces a model in which each of the 637 columns of $\gamma$ could be well approximated by the mean vector plus a weighted sum of two principal components: $\gamma_{i}\approx m+X\beta_{i}$. We scale the two columns of $X$ so that $\beta_{i}$ coefficients
+have zero means, unit variances, and zero covariances over the empirical data $i=1 \ldots 637$. These calculations produce constants $X= \begin{matrix}0 & 0.27 & 0.54 & 0.73 & 0.88 & 1.04 & 1.52\\0 & 0.32 & 0.51 & 0.51 & 0.35 & 0.05 & -0.72 \end{matrix}^{\prime}$, with which we use the prior 
 
 \begin{equation}
 \beta\,\sim N(0,I_2)\label{eq:prior for beta}
@@ -301,3 +508,70 @@ with support restricted to the range [-2,+2] for each $\beta$ coefficient, in or
 
 *Mortality Parameters*
 
+We model child and adult mortality with a two-parameter relational mortality model [@wilmoth2012flexible]. The probability of death before age five ($q_5$) and a shape parameter $k$ with typical values between -2 and +2 index the mortality schedule. The model uses fixed constants $\left\{a_x,b_x,c_x,v_x\right\}$ derived from mortality schedules in the Human Mortality Database:
+
+\begin{equation}
+\ln\,\mu_{x}(q_{5},k) = a_{x}+b_{x}\,\left[\ln\, q_{5}\right]+c_{x}\,\left[\ln\, q_{5}\right]^{2}+v_{x}\, k\quad,\quad x=0,1,5,10 \ldots 45
+\end{equation}
+
+Mortality rates $\mu_0$ and $\mu_1$ refer to age intervals $[0,1)$ and $[1,5)$, $\mu_x$ refers to 5-year age intervals $[x,x+5)$ for all other age groups. $q_5=1-l_5$ is a model parameter, meaning there are no $\left\{a_x,b_x,c_x,v_x\right\}$ constants for calculating $\mu_1$; instead, $\mu_1$ is calculated by $\mu_{1}=-\tfrac{1}{4}\left[\mu_{0}+\ln\left(1-q_{5}\right)\right]$.
+
+We convert log mortality rates into life table person-years, $L_a$, for 5-year age intervals $[a,a+5)$ using standard demographic approximations. Survival probabilities to exact ages are $l_{0}=1$, $l_{1}=e^{-\mu_{0}}$,
+$l_{5}=l_{1}\cdot e^{-4\mu_{1}}$, and $l_{x}=l_{x-5}\cdot e^{-5\mu_{x-5}}$
+for $x=10\ldots45$. Life table person-years are $L_{0}=\frac{1}{2}\left(l_{0}+l_{1}\right)+\frac{4}{2}\left(l_{1}+l_{5}\right)$
+and $L_{a}=\frac{5}{2}\left(l_{a}+l_{a+5}\right)$ for $a=5\ldots45$.
+Thus the two mortality parameters $\left(q_{5},k\right)$ yield 10 $L_{a}$
+values $(L_{0},L_{5}\ldots L_{45}).$
+
+
+To account for the uncertainty in the mortality estimates, we use a beta distribution of $q_5$ (denoted as $\hat{q}_5$). The prior is defined as
+
+\begin{equation}
+q_5 \sim Beta[a(\hat{q}_5), b(\hat{q}_5)]\label{eq:prior for q5}
+\end{equation}
+
+where $a(\hat{q}_5)$ and $b(\hat{q}_5)$ are chosen so that $P[q_{5}<\tfrac{1}{2}\,\min(\hat{q}_{5})]\:=\: P[q_{5}>2\,\max(\hat{q}_{5})]\:=\:.05$. This assigns a 90% prior probability that under-five mortality $q_5$ is between one-half and twice the observed $q_5$ value.
+
+For the shape parameter $k$, we use the prior
+\begin{equation}
+k \sim N(0,1) \label{eq:prior for k}
+\end{equation}
+
+which centers the distribution at zero and has a low probability of falling out of the $[-2,+2]$ range. We assume that mortality parameters $q_5$ and $k$ are independent.
+
+The values for parameters ($TFR$, $\beta$, $q_5$, $k$) imply specific values $K_a$ in equation \ref{eq:Ka}. The expected number of children to the $W_{a}$
+women observed in age group $a$ is $W_{a}K_{a}$, and the observed
+number of surviving children may be modeled as 
+$C_{a}\;\sim\; Poisson(\, W_{a}\, K_{a}\,)$. It is reasonable to assume that $C_{a}$ values are statistically
+independent, conditional on fertility and mortality rates, so that
+their sum $C=\sum_{a}C_{a}$ is also a Poisson random variable. Thus,
+\begin{equation}
+C|W,TFR,\beta,q_5,k \sim Poisson \Bigg[ \sum_{a=15}^{45}W_aK_a(TFR,\beta,q_5,k) \Bigg] \label{eq:poisson distribution of C}
+\end{equation}
+
+
+\textbf{Posterior Distribution of TFR}
+
+The posterior for parameters conditional on data is
+\begin{equation}
+P(TFR,\beta, q_5,k | C,W) \propto L(C|W,TFR,\beta,q_5,k) f_\beta(\beta)f_q(q_5)f_k(k)  \label{eq:joint posterior}
+\end{equation}
+
+where the likelihood on the right-hand side is the Poisson likelihood
+in (\ref{eq:poisson distribution of C}), and the $f$ functions represent
+the prior densities implied by (\ref{eq:prior for beta}), (\ref{eq:prior for q5}),
+and (\ref{eq:prior for k}), respectively. Note that the improper flat prior for $TFR$ does not affect the posterior distribution.
+
+The marginal posterior for TFR, which expresses the relative probabilities
+of alternative fertility levels given the number of children $C$
+and the counts of women $W_{15}\ldots W_{45}$, is 
+
+\begin{equation}
+P(TFR | C,W) \propto \int L(C|W,TFR,\beta,q_5,k)f_\beta(\beta)f_{q}(q_5) f_k(k) d \beta\ d q_5\ d k\
+\label{eq:marginal posterior of TFR}
+\end{equation}
+
+
+In practice, we sample from the full posterior distribution in (\ref{eq:joint posterior}) by applying Markov Chain Monte Carlo (MCMC)
+methods. Specifically, we program the model in the \textit{Stan} MCMC language [@stanjss2017], as implemented in the \textit{rstan} package in \textit{R} [@rstanpackage;@Rlanguage]. We use the empirical density of the sampled $TFR$
+values to estimate the marginal posterior of $TFR$ in (\ref{eq:marginal posterior of TFR}).
