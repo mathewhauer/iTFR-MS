@@ -374,7 +374,7 @@ Although the conventional technique for calculating TFR is straightforward, it r
 Numerous indirect estimation techniques have been proposed to circumvent these limitations [@bogue64;@hanson63;@rele67]. 
 These methods are often regression-based, and they rely on covariates -- such as mean age at marriage, percent of women ever married, etc. -- that may be absent from census data and therefore need to collected in surveys. The resulting scale- and time-dependent estimates are often inaccurate, [@tuchfeld74;@hauer13] and, like TFR, limited to areas, time periods, and populations with the requisite population and survey data.
 
-Here we discuss a modeling framework that overcomes these problems and demonstrate the near universal applicability of a parameter-free estimation method. 
+Here we discuss a modeling framework that overcomes these problems and demonstrate the near universal applicability of a parameter-free estimation method. The method uses census or survey counts of population by age and sex, and its principles are straightforward and well known. Recent research has demonstrated that the basic method's errors are acceptably small (@@@CITATIONS HERE@@@), and that several modifications can make errors smaller (@@@CITATIONS HERE@@@).
 
 We first approximate TFR using a variant of the general fertility rate (the total observed births divided by the total number of reproductive age women), in which we substitute the number of enumerated children for recorded births. Then, based only on accurate population counts by age and sex, we develop more complex versions that can accurately estimate total fertility rates over numerous scales, time periods, sub-populations, and even species.
 
